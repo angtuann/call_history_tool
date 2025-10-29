@@ -50,85 +50,149 @@
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
 
+  // ===== UI elements
+  const blurToggle = document.getElementById('blurToggle');
+  const calibToggle = document.getElementById('calibToggle');
+  const activeField = document.getElementById('activeField');
+  const fontSize = document.getElementById('fontSize');
+  const alignSel = document.getElementById('alignSel');
+  const coordsEl = document.getElementById('coords');
+
+  // ===== Config (center anchors)
+  const cfg = {
+    phone:   { x: 296, y: 395, font: 36, align: 'center' },
+    time:    { x: 70,  y: 662, font: 17, align: 'left',  bold: true },
+    duration:{ x: 520, y: 662, font: 17, align: 'right' }
+  };
+  try { const saved = JSON.parse(localStorage.getItem('call_cfg')); if(saved) Object.assign(cfg, saved); } catch{}
+
   let img = new Image();
-  img.src = 'background.jpg'; // ảnh nền để riêng
-  img.onload = ()=>{ redraw(); };
+  img.src = 'background.jpg';
+  img.onload = ()=>{ redraw(); updateUIFromCfg(); };
 
   function setFont(size, bold=false){
     ctx.font = (bold? "600 ": "") + size + 'px -apple-system, BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial';
     ctx.fillStyle = '#000';
     ctx.textBaseline = 'middle';
   }
-  function drawText(text, area, size, align='left', bold=false){
+  function drawText(text, pt, size, align='left', bold=false){
     setFont(size, bold);
-    if(align==='center') ctx.textAlign = 'center';
-    else if(align==='right') ctx.textAlign = 'right';
-    else ctx.textAlign = 'left';
-    const x = align==='center' ? area.x + area.w/2 : (align==='right' ? area.x + area.w : area.x);
-    ctx.fillText(text, x, area.y + area.h/2);
+    ctx.textAlign = align;
+    ctx.fillText(text, pt.x, pt.y);
   }
 
-  function redraw(phoneText, durationText, blur){
+  function redraw(phoneText, durationText, blur, showGuides=false){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(img,0,0,canvas.width,canvas.height);
 
-    // --- Vị trí cố định (đã hiệu chỉnh) ---
-    // SĐT: căn giữa toàn chiều ngang, nằm dưới avatar
-    const phoneArea = {x:0, y:360, w:591, h:70};
-    // Hàng thông tin cuộc gọi: cùng 1 dòng với "Outgoing Call"
-    const timeArea = {x:34,  y:646, w:160, h:32};   // canh trái
-    const durArea  = {x:420, y:646, w:140, h:32};   // canh phải
-
-    // Vẽ SĐT (blur mờ che, giữ 3 số cuối rõ)
+    // PHONE
     if(phoneText){
       if(blur){
-        // vẽ text lên offscreen để làm mờ
+        const areaW = 560, areaH = 70; // approximate area for blur
         const off = document.createElement('canvas');
-        off.width = phoneArea.w; off.height = phoneArea.h;
+        off.width = areaW; off.height = areaH;
         const octx = off.getContext('2d');
         octx.textBaseline = 'middle';
-        octx.textAlign = 'center';
-        octx.font = '36px -apple-system, BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial';
+        octx.textAlign = cfg.phone.align;
+        octx.font = cfg.phone.font + 'px -apple-system, BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial';
         octx.fillStyle = '#000';
-        octx.fillText(phoneText, phoneArea.w/2, phoneArea.h/2);
-        // tạo bản mờ
+        const ox = cfg.phone.align==='center' ? areaW/2 : cfg.phone.align==='right' ? areaW-10 : 10;
+        octx.fillText(phoneText, ox, areaH/2);
         const blurC = document.createElement('canvas');
-        blurC.width = phoneArea.w; blurC.height = phoneArea.h;
+        blurC.width = areaW; blurC.height = areaH;
         const bctx = blurC.getContext('2d');
         bctx.filter = 'blur(6px)';
         bctx.drawImage(off,0,0);
-        // dán bản mờ lên nền
-        ctx.drawImage(blurC, phoneArea.x, phoneArea.y);
-        // vẽ lại 3 số cuối rõ
+        ctx.drawImage(blurC, cfg.phone.x - (cfg.phone.align==='center'? areaW/2 : cfg.phone.align==='right'? areaW-10 : 10), cfg.phone.y - areaH/2);
+        // last 3 clear
         const last3 = phoneText.slice(-3);
-        setFont(36);
-        ctx.textAlign = 'right';
-        // đo chiều rộng 3 số cuối để đặt sát mép phải trừ padding
-        const pad = 20;
-        ctx.fillText(last3, phoneArea.x + phoneArea.w - pad, phoneArea.y + phoneArea.h/2);
+        drawText(last3, {x: cfg.phone.x + (cfg.phone.align==='right'? -10: (cfg.phone.align==='center'?  areaW/2-10 : areaW-20)) , y: cfg.phone.y}, cfg.phone.font, 'right');
       } else {
-        drawText(phoneText, phoneArea, 36, 'center');
+        drawText(phoneText, {x: cfg.phone.x, y: cfg.phone.y}, cfg.phone.font, cfg.phone.align);
       }
     }
 
-    // Thời gian realtime HH:MM
+    // TIME realtime
     const now = new Date();
     const HH = String(now.getHours()).padStart(2,'0');
     const MM = String(now.getMinutes()).padStart(2,'0');
     const timeText = HH+":"+MM;
-    drawText(timeText, timeArea, 17, 'left', true);
+    drawText(timeText, {x: cfg.time.x, y: cfg.time.y}, cfg.time.font, cfg.time.align, cfg.time.bold);
 
-    // Thời lượng (ví dụ: 3 seconds / 2m 10s)
+    // DURATION
     if(durationText){
-      drawText(durationText, durArea, 17, 'right');
+      drawText(durationText, {x: cfg.duration.x, y: cfg.duration.y}, cfg.duration.font, cfg.duration.align);
+    }
+
+    // Guides for calibration
+    if(showGuides){
+      ['phone','time','duration'].forEach(k=>{
+        const p = cfg[k];
+        ctx.save();
+        ctx.strokeStyle = k==='phone'? '#ef4444' : k==='time'? '#3b82f6' : '#10b981';
+        ctx.setLineDash([5,4]);
+        ctx.beginPath();
+        ctx.moveTo(p.x-12, p.y); ctx.lineTo(p.x+12, p.y);
+        ctx.moveTo(p.x, p.y-12); ctx.lineTo(p.x, p.y+12);
+        ctx.stroke();
+        ctx.restore();
+      });
     }
   }
 
+  function updateUIFromCfg(){
+    const key = activeField.value;
+    fontSize.value = cfg[key].font;
+    alignSel.value = cfg[key].align || 'left';
+  }
+  function saveCfg(){ localStorage.setItem('call_cfg', JSON.stringify(cfg)); }
+
+  // ===== Calibrate interactions
+  canvas.addEventListener('mousemove', (e)=>{
+    if(!calibToggle.checked) return;
+    const r = canvas.getBoundingClientRect();
+    const x = Math.round(e.clientX - r.left), y = Math.round(e.clientY - r.top);
+    coordsEl.textContent = `Tọa độ: (${x}, ${y})`;
+  });
+  canvas.addEventListener('click', (e)=>{
+    if(!calibToggle.checked) return;
+    const r = canvas.getBoundingClientRect();
+    const x = Math.round(e.clientX - r.left), y = Math.round(e.clientY - r.top);
+    const key = activeField.value; cfg[key].x = x; cfg[key].y = y; saveCfg();
+    redraw(document.getElementById('phoneInput').value.trim(), document.getElementById('durationInput').value.trim(), blurToggle.checked, true);
+    updateUIFromCfg();
+  });
+  window.addEventListener('keydown', (e)=>{
+    if(!calibToggle.checked) return;
+    const key = activeField.value; const step = e.shiftKey? 10 : 1;
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+      e.preventDefault();
+      if(e.key==='ArrowUp') cfg[key].y -= step;
+      if(e.key==='ArrowDown') cfg[key].y += step;
+      if(e.key==='ArrowLeft') cfg[key].x -= step;
+      if(e.key==='ArrowRight') cfg[key].x += step;
+      saveCfg();
+      redraw(document.getElementById('phoneInput').value.trim(), document.getElementById('durationInput').value.trim(), blurToggle.checked, true);
+      coordsEl.textContent = `Tọa độ: (${cfg[key].x}, ${cfg[key].y})`;
+    }
+    if(/^[1-9]$/.test(e.key)){
+      cfg[key].font = 10 * parseInt(e.key); saveCfg(); updateUIFromCfg();
+      redraw(document.getElementById('phoneInput').value.trim(), document.getElementById('durationInput').value.trim(), blurToggle.checked, true);
+    }
+  });
+  activeField.addEventListener('change', updateUIFromCfg);
+  fontSize.addEventListener('change', ()=>{ cfg[activeField.value].font = parseInt(fontSize.value)||cfg[activeField.value].font; saveCfg(); redraw(document.getElementById('phoneInput').value.trim(), document.getElementById('durationInput').value.trim(), blurToggle.checked, calibToggle.checked); });
+  alignSel.addEventListener('change', ()=>{ cfg[activeField.value].align = alignSel.value; saveCfg(); redraw(document.getElementById('phoneInput').value.trim(), document.getElementById('durationInput').value.trim(), blurToggle.checked, calibToggle.checked); });
+  document.getElementById('copyCfg').addEventListener('click', ()=>{
+    const text = JSON.stringify(cfg, null, 2);
+    navigator.clipboard.writeText(text).then(()=>{ alert('Đã copy config vào clipboard'); });
+  });
+
+  // ===== Actions
   document.getElementById('createBtn').addEventListener('click', ()=>{
     const phone = document.getElementById('phoneInput').value.trim();
     const dur = document.getElementById('durationInput').value.trim();
-    const blur = document.getElementById('blurToggle').checked;
-    redraw(phone, dur, blur);
+    redraw(phone, dur, blurToggle.checked, calibToggle.checked);
     window._lastGenerated = canvas;
   });
 
