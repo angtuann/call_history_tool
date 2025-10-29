@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Call History Editor — Fixed Template</title>
+  <style>
+    body{font-family:-apple-system, BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial;margin:18px;background:#f6f7fb;color:#111}
+    h1{font-size:18px;margin:0 0 10px}
+    .wrap{display:flex;gap:18px;align-items:flex-start}
+    .panel{background:white;padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(20,30,50,0.06);width:340px}
+    label{display:block;font-size:13px;margin-top:8px}
+    input[type=text]{width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid #e0e6ef}
+    button{margin-top:8px;padding:8px 10px;border-radius:8px;border:0;background:#0b76ff;color:white;cursor:pointer}
+    button.secondary{background:#666}
+    .canvas-wrap{background:white;padding:10px;border-radius:10px;box-shadow:0 6px 18px rgba(20,30,50,0.06)}
+    canvas{border:1px solid #ddd;max-width:800px;width:100%;height:auto}
+    .small{font-size:12px;color:#666}
+  </style>
+</head>
+<body>
+  <h1>Call History Editor (Fixed)</h1>
+  <div class="wrap">
+    <div class="panel">
+      <label>Nhập số điện thoại</label>
+      <input id="phoneInput" type="text" placeholder="Số điện thoại (ví dụ +84...)" />
+
+      <label>Nhập thời lượng</label>
+      <input id="durationInput" type="text" placeholder="Ví dụ: 2m hoặc 120s" />
+
+      <label><input id="blurToggle" type="checkbox" /> Blur số điện thoại (chỉ để lại 3 số cuối)</label>
+
+      <button id="createBtn">Tạo (thời gian realtime)</button>
+      <button id="downloadBtn" class="secondary">Tải về</button>
+
+      <div style="margin-top:10px">
+        <div class="small">Thời gian sẽ lấy lúc bạn bấm "Tạo" (HH:MM).<br>
+        Nếu bật Blur SĐT: chỉ để rõ 3 số cuối, phần còn lại sẽ mờ.</div>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <strong>Preview</strong>
+      <canvas id="c" width="591" height="1225"></canvas>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  let img = new Image();
+  img.src = 'background.jpg'; // ảnh nền để riêng
+  img.onload = ()=>{ redraw(); };
+
+  function drawTextCentered(text, area, fontSize, bold=false){
+    ctx.font = (bold? "600 ": "") + fontSize + 'px -apple-system, BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial';
+    ctx.fillStyle = '#000';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, area.x + area.w/2, area.y + area.h/2);
+  }
+
+  function redraw(phoneText, durationText, blur){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+    // --- Vị trí cố định ---
+    const phoneArea = {x:0, y:260, w:591, h:60};
+    const timeArea = {x:100, y:500, w:120, h:40};
+    const durArea  = {x:420, y:500, w:120, h:40};
+
+    // Vẽ số điện thoại
+    if(phoneText){
+      if(blur){
+        const visibleDigits = 3;
+        const masked = phoneText.slice(0, -visibleDigits).replace(/\d/g, "●") + phoneText.slice(-visibleDigits);
+        drawTextCentered(masked, phoneArea, 28);
+      } else {
+        drawTextCentered(phoneText, phoneArea, 28);
+      }
+    }
+
+    // Vẽ thời gian realtime
+    if(timeArea){
+      const now = new Date();
+      const HH = String(now.getHours()).padStart(2,'0');
+      const MM = String(now.getMinutes()).padStart(2,'0');
+      const timeText = HH+":"+MM;
+      drawTextCentered(timeText, timeArea, 18, true);
+    }
+
+    // Vẽ thời lượng
+    if(durationText){
+      drawTextCentered(durationText, durArea, 18);
+    }
+  }
+
+  document.getElementById('createBtn').addEventListener('click', ()=>{
+    const phone = document.getElementById('phoneInput').value.trim();
+    const dur = document.getElementById('durationInput').value.trim();
+    const blur = document.getElementById('blurToggle').checked;
+    redraw(phone, dur, blur);
+    window._lastGenerated = canvas;
+  });
+
+  document.getElementById('downloadBtn').addEventListener('click', ()=>{
+    const fc = window._lastGenerated || canvas;
+    const a = document.createElement('a');
+    a.href = fc.toDataURL('image/png');
+    a.download = 'call_history_fixed.png';
+    a.click();
+  });
+})();
+</script>
+</body>
+</html>
